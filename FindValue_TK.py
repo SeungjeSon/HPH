@@ -80,7 +80,7 @@ class DataVisualizer(tk.Tk):
         for widget in self.check_frame.winfo_children():
             widget.destroy()
 
-        columns_to_plot = self.df.columns[1:16]  # 1부터 15번째 열까지 선택
+        columns_to_plot = self.df.columns[1:]  # 첫 번째 열을 제외한 모든 열 선택
         self.check_vars = {col: tk.BooleanVar() for col in columns_to_plot}
 
         # 3열로 배치
