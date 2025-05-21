@@ -31,6 +31,17 @@ class DataVisualizer(tk.Tk):
         self.zoomout_button = tk.Button(self.button_frame, text="Zoom Out", command=self.zoom_out)
         self.zoomout_button.pack(side=tk.LEFT, padx=5)
 
+        # Pass 입력 프레임 추가
+        self.pass_frame = tk.Frame(self.button_frame)
+        self.pass_frame.pack(side=tk.LEFT, padx=5)
+        
+        tk.Label(self.pass_frame, text="Pass:").pack(side=tk.LEFT)
+        self.pass_entry = tk.Entry(self.pass_frame, width=10)
+        self.pass_entry.pack(side=tk.LEFT, padx=5)
+        
+        self.pass_plot_button = tk.Button(self.pass_frame, text="Plot Pass", command=self.plot_pass_data)
+        self.pass_plot_button.pack(side=tk.LEFT, padx=5)
+
         self.coord_label = tk.Label(self, text="")
         self.coord_label.pack(pady=5)
 
@@ -191,6 +202,51 @@ class DataVisualizer(tk.Tk):
                 ax.set_ylim(self.dataframes[list(self.dataframes.keys())[0]].min().min(),
                             self.dataframes[list(self.dataframes.keys())[0]].max().max())
             self.canvas.draw()
+
+    def plot_pass_data(self):
+        if not self.dataframes:
+            return
+
+        try:
+            target_pass = int(self.pass_entry.get())
+        except ValueError:
+            self.coord_label.config(text="유효한 Pass 번호를 입력하세요.")
+            return
+
+        self.figure.clear()
+        self.ax_list = []
+        self.ax1 = self.figure.add_subplot(111)
+        self.ax_list.append(self.ax1)
+
+        for file_name, df in self.dataframes.items():
+            selected_columns = [col for col, var in self.check_vars[file_name].items() if var.get()]
+            if selected_columns:
+                alpha = self.file_alphas[file_name].get() if hasattr(self, 'file_alphas') and file_name in self.file_alphas else 0.6
+                
+                # Pass 필터링
+                pass_data = df[df['Pass'] == target_pass]
+                if pass_data.empty:
+                    continue
+                
+                # 인덱스 리셋
+                pass_data = pass_data.reset_index(drop=True)
+                
+                for column in selected_columns:
+                    if column != 'Pass':  # Pass 열은 제외
+                        self.ax1.plot(
+                            pass_data.index,
+                            pass_data[column],
+                            label=f"{file_name} - {column}",
+                            color=self.file_colors[file_name],
+                            alpha=alpha
+                        )
+
+        self.ax1.set_xlabel('Index (0부터 시작)')
+        self.ax1.set_title(f'Pass {target_pass} 데이터')
+        self.ax1.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
+        self.figure.tight_layout()
+        self.canvas.draw()
+        self.connect_zoom()
 
 
 if __name__ == "__main__":
