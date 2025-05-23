@@ -97,8 +97,22 @@ class DataVisualizer(tk.Tk):
         file_paths = filedialog.askopenfilenames(filetypes=[("CSV files", "*.csv")])
         if file_paths:
             for file_path in file_paths:
-                file_name = file_path.split('/')[-1]
-                self.dataframes[file_name] = pd.read_csv(file_path)
+                base_name = file_path.split('/')[-1]
+                file_name = base_name
+                # 파일명 중복 방지
+                count = 1
+                while file_name in self.dataframes:
+                    file_name = f"{base_name}({count})"
+                    count += 1
+                try:
+                    df = pd.read_csv(file_path)
+                except Exception as e:
+                    self.coord_label.config(text=f"{file_name} 파일 읽기 오류: {e}")
+                    continue
+                if df.empty:
+                    self.coord_label.config(text=f"{file_name} 데이터가 비어있음.")
+                    continue
+                self.dataframes[file_name] = df
                 self.dataframes[file_name].fillna(method='ffill', inplace=True)
                 self.file_colors[file_name] = self.get_distinct_color()  # 새로운 색상 할당 방식 사용
                 self.create_file_tab(file_name)
@@ -148,6 +162,7 @@ class DataVisualizer(tk.Tk):
 
     def plot_selected_data(self):
         if not self.dataframes:
+            self.coord_label.config(text="데이터가 없습니다.")
             return
 
         self.figure.clear()
@@ -155,11 +170,16 @@ class DataVisualizer(tk.Tk):
         self.ax1 = self.figure.add_subplot(111)
         self.ax_list.append(self.ax1)
 
+        plotted = False
         for file_name, df in self.dataframes.items():
+            if file_name not in self.check_vars:
+                continue
             selected_columns = [col for col, var in self.check_vars[file_name].items() if var.get()]
             if selected_columns:
                 alpha = self.file_alphas[file_name].get() if hasattr(self, 'file_alphas') and file_name in self.file_alphas else 0.6
                 for column in selected_columns:
+                    if column not in df.columns:
+                        continue
                     downsampled_data = self.downsample(df[column].values)
                     downsampled_index = self.downsample(df.index.values)
                     self.ax1.plot(
@@ -167,14 +187,18 @@ class DataVisualizer(tk.Tk):
                         downsampled_data,
                         label=f"{file_name} - {column}",
                         color=self.file_colors[file_name],
-                        alpha=alpha  # 파일별 투명도 적용
+                        alpha=alpha
                     )
-
+                    plotted = True
         self.ax1.set_xlabel('Index')
         self.ax1.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
         self.figure.tight_layout()
         self.canvas.draw()
         self.connect_zoom()
+        if not plotted:
+            self.coord_label.config(text="선택된 열이 없습니다. 각 파일별로 열을 선택하세요.")
+        else:
+            self.coord_label.config(text="")
 
     def connect_zoom(self):
         self.canvas.mpl_connect("button_press_event", self.on_press)
@@ -205,6 +229,7 @@ class DataVisualizer(tk.Tk):
 
     def plot_pass_data(self):
         if not self.dataframes:
+            self.coord_label.config(text="데이터가 없습니다.")
             return
 
         try:
@@ -218,21 +243,21 @@ class DataVisualizer(tk.Tk):
         self.ax1 = self.figure.add_subplot(111)
         self.ax_list.append(self.ax1)
 
+        plotted = False
         for file_name, df in self.dataframes.items():
+            if file_name not in self.check_vars:
+                continue
             selected_columns = [col for col, var in self.check_vars[file_name].items() if var.get()]
             if selected_columns:
                 alpha = self.file_alphas[file_name].get() if hasattr(self, 'file_alphas') and file_name in self.file_alphas else 0.6
-                
-                # Pass 필터링
+                if 'Pass' not in df.columns:
+                    continue
                 pass_data = df[df['Pass'] == target_pass]
                 if pass_data.empty:
                     continue
-                
-                # 인덱스 리셋
                 pass_data = pass_data.reset_index(drop=True)
-                
                 for column in selected_columns:
-                    if column != 'Pass':  # Pass 열은 제외
+                    if column != 'Pass' and column in pass_data.columns:
                         self.ax1.plot(
                             pass_data.index,
                             pass_data[column],
@@ -240,13 +265,17 @@ class DataVisualizer(tk.Tk):
                             color=self.file_colors[file_name],
                             alpha=alpha
                         )
-
+                        plotted = True
         self.ax1.set_xlabel('Index (0부터 시작)')
         self.ax1.set_title(f'Pass {target_pass} 데이터')
         self.ax1.legend(loc='upper left', bbox_to_anchor=(1.05, 1))
         self.figure.tight_layout()
         self.canvas.draw()
         self.connect_zoom()
+        if not plotted:
+            self.coord_label.config(text="해당 Pass에 데이터가 없거나, 열이 선택되지 않았습니다.")
+        else:
+            self.coord_label.config(text="")
 
 
 if __name__ == "__main__":
